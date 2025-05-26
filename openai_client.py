@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import copy
 import json
-from contextlib import AsyncExitStack
 import traceback
+from contextlib import AsyncExitStack
 
 import nest_asyncio
 from dotenv import load_dotenv
@@ -42,7 +42,7 @@ class MCPOpenAIClient:
         self.write: object | None = None
 
     async def connect_to_server(
-        self, server_script_path: str = "server.py", server_script_args: list[str] = []
+        self, server_script_path: str = "server.py", server_script_args: list[str] | None = None
     ):
         """Connect to a MCP server.
 
@@ -57,6 +57,7 @@ class MCPOpenAIClient:
             if not is_python and not is_js:
                 raise ValueError("Server script must be a .py or .js file")
             command = "python" if is_python else "node"
+            server_script_args = [] if server_script_args is None else server_script_args
             server_script_args = [server_script_args] if type(server_script_args) is str else server_script_args
             server_params = StdioServerParameters(
                 command=command,
@@ -280,7 +281,7 @@ You can request multiple functions at once, and they will be executed one after 
 Continue calling tools until the task is completed or you are unable to finish it, only then communicate back to the user.
 Your average workflow will be: `go_to` url, `get_page_summary` to understand contents page, `type_text` in element,
 `click` in element, then `get_page_summary`, etc. Use only valid CSS selectors for the `locator` of `click` and `type_text`.
-Examples: click(locator="#submit-button") or type_text(locator="input[name='email']", text="user@example.com").
+Examples: click(locator="#submit-button") or type_text(locator="input[name='email']", text="user@example.com"). Avoid XPATH ("//input[@name='q']", )
 You can also see the page with take_screenshot_as_base64, but always try get_page_summary first.
 If get_page_summary does not return all elements in the page, use skip_elements to see the next elements.
 Example: get_page_summary(skip_elements=20).

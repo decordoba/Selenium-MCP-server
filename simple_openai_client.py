@@ -36,7 +36,9 @@ class SimpleMCPOpenAIClient:
         self.write: object | None = None
 
     async def connect_to_server(
-        self, server_script_path: str = "server.py", server_script_args: list[str] = []
+        self,
+        server_script_path: str = "server.py",
+        server_script_args: list[str] | None = None,
     ):
         """Connect to a MCP server.
 
@@ -45,7 +47,12 @@ class SimpleMCPOpenAIClient:
             server_script_args: Arguments passed to the script, if any.
         """
         # Server configuration
-        server_script_args = [server_script_args] if type(server_script_args) is str else server_script_args
+        server_script_args = [] if server_script_args is None else server_script_args
+        server_script_args = (
+            [server_script_args]
+            if type(server_script_args) is str
+            else server_script_args
+        )
         server_params = StdioServerParameters(
             command="python",
             args=[server_script_path] + server_script_args,

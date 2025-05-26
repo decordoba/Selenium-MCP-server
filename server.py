@@ -7,21 +7,19 @@ import re
 import time
 from enum import Enum
 from random import random
-from PIL import Image
-
-from bs4 import BeautifulSoup, NavigableString, Tag
-from mcp.server.fastmcp import FastMCP
-
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 import undetected_chromedriver as uc
+from bs4 import BeautifulSoup, NavigableString, Tag
+from mcp.server.fastmcp import FastMCP
+from PIL import Image
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from logger import get_logger
@@ -36,11 +34,13 @@ class Browser(str, Enum):
 
 
 BROWSER_OPTIONS = [browser.value for browser in Browser]
-BY_OPTIONS = [v for k, v in vars(By).items() if not k.startswith('__') and not callable(v)]
+BY_OPTIONS = [v for k, v in vars(By).items() if not (k.startswith("__") or callable(v))]
 CHROME_LOCATION = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 
 
-def compress_base64_image(base64_str: str, max_width: int = 800, max_height: int = 600) -> str:
+def compress_base64_image(
+    base64_str: str, max_width: int = 800, max_height: int = 600
+) -> str:
     """Resize image down, so that width or height match max_width/max_height."""
     image_data = base64.b64decode(base64_str)
     image = Image.open(io.BytesIO(image_data))
@@ -76,7 +76,9 @@ def extract_html_to_depth(html: str, depth: int | None, prettify: bool = False) 
     return result
 
 
-def trim_html_tag_to_depth(tag: Tag | NavigableString | None, depth: int) -> Tag | NavigableString | None:
+def trim_html_tag_to_depth(
+    tag: Tag | NavigableString | None, depth: int
+) -> Tag | NavigableString | None:
     """Trim HTML tag to a maximum depth."""
     if depth <= 0 or tag is None:
         return None
@@ -215,7 +217,10 @@ class SeleniumMCPServer:
             self.start_browser()
 
     def _wait_if_undetected(self, offset: int = 1, variance: int = 4):
-        """Wait between offset and offset+variance seconds. Only applied if self.undetected."""
+        """Wait between offset and offset+variance seconds.
+
+        Only applied if self.undetected is True.
+        """
         if self.undetected:
             wait_seconds = offset + variance * random()
             time.sleep(wait_seconds)
@@ -250,8 +255,10 @@ class SeleniumMCPServer:
                 else:
                     options = Options()
                     options.binary_location = CHROME_LOCATION
-                    self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
-                                                   options=options)
+                    self.driver = webdriver.Chrome(
+                        service=Service(ChromeDriverManager().install()),
+                        options=options,
+                    )
             elif self.browser == Browser.EDGE:
                 self.driver = webdriver.Edge()
             elif self.browser == Browser.FIREFOX:
@@ -272,7 +279,9 @@ class SeleniumMCPServer:
         if self.driver is not None:
             self.driver.quit()
             self.driver = None
-            return self._log_return(f"{self.browser.capitalize()} browser closed successfully")
+            return self._log_return(
+                f"{self.browser.capitalize()} browser closed successfully"
+            )
         return self._log_return("No browser running")
 
     def set_timeout(self, seconds: int) -> str:
@@ -284,9 +293,15 @@ class SeleniumMCPServer:
 
     def change_browser(self, browser: str = Browser.CHROME.value) -> str:
         """Quit the browser if running and change the browser used."""
-        self._log_call(f"Change browser to {browser} from {self.browser} (undetected: {self.undetected})")
+        self._log_call(
+            f"Change browser to {browser} from {self.browser} "
+            f"(undetected: {self.undetected})"
+        )
         if browser not in BROWSER_OPTIONS:
-            return self._log_return(f"Invalid browser: {browser}. Must be one of: {', '.join(BROWSER_OPTIONS)}")
+            return self._log_return(
+                f"Invalid browser: {browser}. "
+                f"Must be one of: {', '.join(BROWSER_OPTIONS)}"
+            )
         self.quit_browser()
         self.browser = browser
         return self._log_return(f"Browser set to {browser}")
@@ -347,7 +362,9 @@ class SeleniumMCPServer:
         self._ensure_browser_started()
         self._wait_if_undetected()
         if by not in BY_OPTIONS:
-            return self._log_return(f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}")
+            return self._log_return(
+                f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"
+            )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((by, locator))
@@ -359,19 +376,28 @@ class SeleniumMCPServer:
         except Exception as e:
             return self._log_return(f"Error clicking element: {str(e)}")
 
-    def type_text(self, locator: str, text: str, clear: bool = True, press_enter: bool = False,
-                  is_password: bool = False, by: str = "css selector") -> str:
-        """Type text into an element. Optionally clear text from the element before and press ENTER after."""
+    def type_text(
+        self,
+        locator: str,
+        text: str,
+        clear: bool = True,
+        press_enter: bool = False,
+        is_password: bool = False,
+        by: str = "css selector",
+    ) -> str:
+        """Type text into an element. Optional: clear text before, press ENTER after."""
         self._remember_action()
         self._log_call(
-            f"Type text '{'****' if is_password else text}' " +
+            f"Type text '{'****' if is_password else text}' "
             f"in element with locator: {locator}, by: {by}. "
             f"Clear: {clear}, Press ENTER: {press_enter}"
         )
         self._ensure_browser_started()
         self._wait_if_undetected()
         if by not in BY_OPTIONS:
-            return self._log_return(f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}")
+            return self._log_return(
+                f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"
+            )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((by, locator))
@@ -396,7 +422,9 @@ class SeleniumMCPServer:
         self._ensure_browser_started()
         self._wait_if_undetected()
         if by not in BY_OPTIONS:
-            return self._log_return(f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}")
+            return self._log_return(
+                f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"
+            )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((by, locator))
@@ -413,7 +441,9 @@ class SeleniumMCPServer:
         self._log_call(f"Get text in element with locator: {locator}, by: {by}")
         self._ensure_browser_started()
         if by not in BY_OPTIONS:
-            return self._log_return(f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}")
+            return self._log_return(
+                f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"
+            )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((by, locator))
@@ -424,12 +454,18 @@ class SeleniumMCPServer:
         except Exception as e:
             return self._log_return(f"Error getting text: {str(e)}")
 
-    def get_element_attribute(self, locator: str, attribute: str, by: str = "css selector") -> str:
+    def get_element_attribute(
+        self, locator: str, attribute: str, by: str = "css selector"
+    ) -> str:
         """Get attribute value from an element."""
-        self._log_call(f"Get attribute {attribute} in element with locator: {locator}, by: {by}")
+        self._log_call(
+            f"Get attribute {attribute} in element with locator: {locator}, by: {by}"
+        )
         self._ensure_browser_started()
         if by not in BY_OPTIONS:
-            return self._log_return(f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}")
+            return self._log_return(
+                f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"
+            )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((by, locator))
@@ -447,33 +483,52 @@ class SeleniumMCPServer:
         text = BeautifulSoup(html, "html.parser").get_text(separator="\n", strip=True)
         return self._log_return(re.sub(r"\n{3,}", "\n\n", text))
 
-    def get_visible_text_xpath(self, visible_text: str, partial: bool = False,
-                               prettify: bool = False) -> str:
+    def get_visible_text_xpath(
+        self, visible_text: str, partial: bool = False, prettify: bool = False
+    ) -> str:
         """Get parent element tree of a visible text."""
-        self._log_call(f"Get xpath for visible text '{visible_text}'. Partial: {partial}, prettify: {prettify}")
+        self._log_call(
+            f"Get xpath for visible text '{visible_text}'. "
+            f"Partial: {partial}, prettify: {prettify}"
+        )
         locator = f"//*[text()='{visible_text}']"
         if partial:
             locator = f"//*[contains(text()='{visible_text}')]"
-        return self._log_return(self.get_element_xpath(locator, by=By.XPATH, prettify=prettify))
+        return self._log_return(
+            self.get_element_xpath(locator, by=By.XPATH, prettify=prettify)
+        )
 
     def get_html(self, depth: int = 1) -> str:
         """Get page HTML up to some depth (-1 for infinite depth)."""
         return self.get_element_html(depth=depth)
 
-    def get_element_html(self, locator: str = "html", depth: int = 1, by: str = "css selector",
-                         outer: bool = True, prettify: bool = False) -> str:
-        """Get outer/inner HTML of an element, up to some depth (-1 for infinite depth)."""
+    def get_element_html(
+        self,
+        locator: str = "html",
+        depth: int = 1,
+        by: str = "css selector",
+        outer: bool = True,
+        prettify: bool = False,
+    ) -> str:
+        """Get HTML of an element, up to some depth (-1 for infinite depth)."""
         self._log_call(
-            f"Get html with depth {depth} of element with locator: {locator}, by: {by}. " +
-            f"Outer: {outer}, prettify: {prettify}"
+            f"Get html with depth {depth} of element with locator: "
+            f"{locator}, by: {by}. Outer: {outer}, prettify: {prettify}"
         )
-        html = self.get_element_attribute(locator=locator, attribute="outerHTML" if outer else "innerHTML", by=by)
+        html = self.get_element_attribute(
+            locator=locator, attribute="outerHTML" if outer else "innerHTML", by=by
+        )
         depth = depth if depth >= 0 else None
         return self._log_return(extract_html_to_depth(html, depth, prettify=prettify))
 
-    def get_element_xpath(self, locator: str, by: str = "css selector", prettify: bool = False) -> str:
+    def get_element_xpath(
+        self, locator: str, by: str = "css selector", prettify: bool = False
+    ) -> str:
         """Get parent element tree of an element."""
-        self._log_call(f"Get xpath of element with locator: {locator}, by: {by}. Prettify: {prettify}")
+        self._log_call(
+            f"Get xpath of element with locator: {locator}, by: {by}. "
+            f"Prettify: {prettify}"
+        )
         try:
             element = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((by, locator))
@@ -509,12 +564,20 @@ class SeleniumMCPServer:
         except Exception as e:
             return self._log_return(f"Error locating element: {str(e)}")
 
-    def get_page_summary(self, skip_elements: int = 0, max_elements: int = 20, filter_type: str = "",
-                         only_visible_elements: bool = True, detailed: bool = False) -> list[dict[str, object]]:
+    def get_page_summary(
+        self,
+        skip_elements: int = 0,
+        max_elements: int = 20,
+        filter_type: str = "",
+        only_visible_elements: bool = True,
+        detailed: bool = False,
+    ) -> list[dict[str, object]]:
         """Get page summary containing all forms, buttons, links and texts."""
-        self._log_call(f"Get page summary. Only visible: {only_visible_elements}, max elements: {max_elements}")
+        self._log_call(
+            f"Get page summary. Only visible: {only_visible_elements}, "
+            f"max elements: {max_elements}"
+        )
         visibility_cache = {}
-        interactability_cache = {}
 
         def is_element_visible_by_xpath(xpath):
             if xpath in visibility_cache:
@@ -526,15 +589,6 @@ class SeleniumMCPServer:
                 return False
             visibility_cache[xpath] = visible
             return visible
-
-        def is_element_interactable(xpath, max_wait=0.5):
-            if xpath in interactability_cache:
-                return interactability_cache[xpath]
-            try:
-                WebDriverWait(self.driver, max_wait).until(EC.element_to_be_clickable((By.XPATH, xpath)))
-                return True
-            except (NoSuchElementException, TimeoutException):
-                return False
 
         def build_xpath(el):
             path = []
@@ -563,9 +617,13 @@ class SeleniumMCPServer:
         def extract_inputs(form):
             inputs = []
             for inp in form.find_all(["input", "textarea", "select"]):
-                inp_data = clean_attrs(inp, ["name", "placeholder", "type", "class", "id"])
+                inp_data = clean_attrs(
+                    inp, ["name", "placeholder", "type", "class", "id"]
+                )
                 if "class" in inp_data:
-                    inp_data["class"] = inp_data["class"] if detailed else " ".join(inp_data["class"])
+                    inp_data["class"] = (
+                        inp_data["class"] if detailed else " ".join(inp_data["class"])
+                    )
                 if inp_data:
                     xpath = build_xpath(inp)
                     if detailed:
@@ -587,7 +645,11 @@ class SeleniumMCPServer:
                 if text:
                     btn_data["text"] = text
                 if detailed:
-                    btn_data.update(clean_attrs(btn, ["aria-label", "role", "class", "id"]))
+                    btn_data.update(
+                        clean_attrs(btn, ["aria-label", "role", "class", "id"])
+                    )
+                else:
+                    btn_data.update(clean_attrs(btn, ["class", "id"]))
                 classes = btn.get("class")
                 if classes:
                     btn_data["class"] = classes if detailed else " ".join(classes)
@@ -607,11 +669,20 @@ class SeleniumMCPServer:
         def summarize_forms_buttons_links_and_text():
             summary = []
             soup = BeautifulSoup(self.driver.page_source, "html.parser")
-            for i, tag in enumerate(soup.find_all(["form", "button", "a", "h1", "h2", "h3", "p", "span"])):
+            summary_tags = ["form", "button", "a", "h1", "h2", "h3", "p", "span"]
+            for tag in soup.find_all(summary_tags):
                 xpath = build_xpath(tag)
                 data = {
                     "index": None,  # fill later
-                    "type": "form" if tag.name == "form" else "button" if tag.name == "button" else "link" if tag.name == "a" else "text",
+                    "type": (
+                        "form"
+                        if tag.name == "form"
+                        else (
+                            "button"
+                            if tag.name == "button"
+                            else "link" if tag.name == "a" else "text"
+                        )
+                    ),
                 }
                 if filter_type != "" and filter_type != data["type"]:
                     continue
@@ -652,13 +723,13 @@ class SeleniumMCPServer:
                         parent_info = {
                             "tag": parent.name,
                             "id": parent.get("id"),
-                            "class": parent.get("class")
+                            "class": parent.get("class"),
                         }
                         parent_info = {k: v for k, v in parent_info.items() if v}
                         if parent_info:
                             data["parent"] = parent_info
                 summary.append(data)
-            # Reorder to place most important items first, this matters because max_elements
+            # Reorder to place most important items first
             order = {"button": 0, "link": 1, "form": 2, "text": 3}
             summary = sorted(summary, key=lambda x: order.get(x["type"], float("inf")))
             # Add index indicating number of total elements
@@ -669,31 +740,51 @@ class SeleniumMCPServer:
         summary = summarize_forms_buttons_links_and_text()
         return self._log_return(summary[skip_elements:skip_elements + max_elements])
 
-    def find_elements(self, locator: str, by: str = "css selector",
-                      max_elements: int = 10, skip_elements: int = 0) -> list[dict[str, str]]:
-        """Find elements (up to max_elements, skipping first skip_elements) and return their information."""
-        self._log_call(f"Find elements with locator: {locator}, by: {by}. Max: {max_elements}, skip: {skip_elements}")
+    def find_elements(
+        self,
+        locator: str,
+        by: str = "css selector",
+        max_elements: int = 10,
+        skip_elements: int = 0,
+    ) -> list[dict[str, str]]:
+        """Return info elements (up to max_elements, skip first skip_elements)."""
+        self._log_call(
+            f"Find elements with locator: {locator}, by: {by}. "
+            f"Max: {max_elements}, skip: {skip_elements}"
+        )
         self._ensure_browser_started()
         if by not in BY_OPTIONS:
-            return self._log_return([{"error": f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"}])
+            error = [
+                {"error": f"Invalid by: {by}. Must be one of: {', '.join(BY_OPTIONS)}"}
+            ]
+            return self._log_return(error)
         try:
             elements = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_all_elements_located((by, locator))
             )
             result = []
-            for i, element in enumerate(elements[skip_elements:max_elements + skip_elements]):
+            for i, element in enumerate(
+                elements[skip_elements:max_elements + skip_elements]
+            ):
                 try:
-                    html = re.sub(r"\n{3,}", "\n\n",
-                                  BeautifulSoup(element.get_attribute("outerHTML"), "html.parser").get_text(separator="\n", strip=True))
+                    html = re.sub(
+                        r"\n{3,}",
+                        "\n\n",
+                        BeautifulSoup(
+                            element.get_attribute("outerHTML"), "html.parser"
+                        ).get_text(separator="\n", strip=True),
+                    )
 
-                    result.append({
-                        "index": i,
-                        "text": element.text.strip(),
-                        "html": html,
-                        "tag": element.tag_name,
-                        "id": element.get_attribute("id") or "",
-                        "class": element.get_attribute("class") or ""
-                    })
+                    result.append(
+                        {
+                            "index": i,
+                            "text": element.text.strip(),
+                            "html": html,
+                            "tag": element.tag_name,
+                            "id": element.get_attribute("id") or "",
+                            "class": element.get_attribute("class") or "",
+                        }
+                    )
                 except Exception:
                     pass
             return self._log_return(result)
@@ -736,7 +827,7 @@ class SeleniumMCPServer:
             result = self.driver.execute_script(script, *args)
             if result is None:
                 return self._log_return("Script executed successfully")
-            if isinstance(result, (dict, list)):
+            if isinstance(result, dict | list):
                 return self._log_return(json.dumps(result))
             return self._log_return(str(result))
         except Exception as e:
@@ -744,7 +835,9 @@ class SeleniumMCPServer:
 
     def _get_filename(self, prefix: str = "screenshot", extension: str = "png") -> str:
         """Get filename in standard style."""
-        return f"{prefix}_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}.{extension}"
+        return (
+            f"{prefix}_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}.{extension}"
+        )
 
     def _get_filepath(self, filename: str, directory: str) -> str:
         """Get full path and folder ready to save screenshot."""
@@ -755,7 +848,9 @@ class SeleniumMCPServer:
         """Take a screenshot of the current page."""
         self._remember_action()
         filename = self._get_filename()
-        self._log_call(f"Take screenshot. Filename: {filename}, folder: {self.screenshots_dir}")
+        self._log_call(
+            f"Take screenshot. Filename: {filename}, folder: {self.screenshots_dir}"
+        )
         self._ensure_browser_started()
         try:
             filepath = self._get_filepath(filename, self.screenshots_dir)
@@ -768,7 +863,10 @@ class SeleniumMCPServer:
         """Take a screenshot of the current page and return as base64."""
         self._remember_action()
         filename = self._get_filename()
-        self._log_call(f"Take screenshot as base 64. Filename: {filename}, folder: {self.screenshots_dir}")
+        self._log_call(
+            f"Take screenshot as base 64. "
+            f"Filename: {filename}, folder: {self.screenshots_dir}"
+        )
         self._ensure_browser_started()
         try:
             base64_string = self.driver.get_screenshot_as_base64()
@@ -783,7 +881,9 @@ class SeleniumMCPServer:
                 with open(filepath, "wb") as file:
                     file.write(image_data)
             return_value = "base64," + base64_string
-            self._log_return(return_value[:50] + "..." + return_value[-50:])  # avoid occupying all logs
+            self._log_return(
+                return_value[:50] + "..." + return_value[-50:]
+            )  # avoid occupying all logs
             return return_value
         except Exception as e:
             return self._log_return(f"Error taking screenshot: {str(e)}")
@@ -832,10 +932,15 @@ class SeleniumMCPServer:
         except Exception as e:
             return self._log_return(f"Error submitting form: {str(e)}")
 
-    def wait_for_element(self, locator: str, by: str = "css selector", timeout: int = -1) -> bool:
+    def wait_for_element(
+        self, locator: str, by: str = "css selector", timeout: int = -1
+    ) -> bool:
         """Wait for an element to be present, if timeout -1 use timeout set."""
         self._remember_action()
-        self._log_call(f"Wait for element with locator: {locator}, by: {by} (timeout: {timeout} seconds)")
+        self._log_call(
+            f"Wait for element with locator: {locator}, by: {by} "
+            f"(timeout: {timeout} seconds)"
+        )
         self._ensure_browser_started()
         timeout = timeout or self.timeout
         try:
@@ -881,7 +986,9 @@ class SeleniumMCPServer:
     def save_recording(self, reset_recording: bool = True) -> str:
         """Save the recorded sequence to a JSON file."""
         filename = self._get_filename("recording", extension="txt")
-        self._log_call(f"Save recording. Filename: {filename}, folder: {self.recordings_dir}")
+        self._log_call(
+            f"Save recording. Filename: {filename}, folder: {self.recordings_dir}"
+        )
         try:
             filepath = self._get_filepath(filename, self.recordings_dir)
             with open(filepath, "w", encoding="utf-8") as f:
@@ -889,19 +996,25 @@ class SeleniumMCPServer:
             num_actions = len(self.sequence_recorded)
             if reset_recording:
                 self.reset_recording()
-            return self._log_return(f"Recording ({num_actions} actions) saved to {filepath}")
+            return self._log_return(
+                f"Recording ({num_actions} actions) saved to {filepath}"
+            )
         except Exception as e:
             return self._log_return(f"Error saving recording: {str(e)}")
 
     def load_recording(self, filename: str) -> str:
         """Load a recording into self.recorded_sequence from a JSON file."""
         filepath = self._get_filepath(filename, self.recordings_dir)
-        self._log_call(f"Load recording. Filename: {filename}, folder: {self.recordings_dir}")
+        self._log_call(
+            f"Load recording. Filename: {filename}, folder: {self.recordings_dir}"
+        )
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 self.sequence_recorded = json.load(f)
             num_actions = len(self.sequence_recorded)
-            return self._log_return(f"Recording loaded ({num_actions} actions) from {filepath}")
+            return self._log_return(
+                f"Recording loaded ({num_actions} actions) from {filepath}"
+            )
         except Exception as e:
             return self._log_return(f"Error loading recording: {str(e)}")
 
@@ -913,8 +1026,11 @@ class SeleniumMCPServer:
         return self._log_return("Recording has been reset")
 
     def play_recording(self, delay: float = 0.0) -> str:
-        """Perform all actions in a recording in order, with delay seconds between them."""
-        self._log_call(f"Play recording of {len(self.sequence_recorded)} actions. Delay: {delay} seconds")
+        """Perform actions in current recording, with delay seconds between."""
+        self._log_call(
+            f"Play recording of {len(self.sequence_recorded)} actions. "
+            f"Delay: {delay} seconds"
+        )
         try:
             for action_name, arguments in self.sequence_recorded:
                 getattr(self, action_name)(**arguments)
@@ -932,8 +1048,12 @@ class SeleniumMCPServer:
         self._register_tools(advanced_tools=True)
         return self._log_return("Advanced tools enabled")
 
-    def run(self, transport: str = "stdio", advanced_tools: bool = False,
-            undetected_bot: bool = False):
+    def run(
+        self,
+        transport: str = "stdio",
+        advanced_tools: bool = False,
+        undetected_bot: bool = False,
+    ):
         """Run the MCP server with the specified transport."""
         # Choose tools to register
         self._log_call("Run server")
@@ -964,21 +1084,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Give a model the ability to control a browser through Selenium"
     )
-    parser.add_argument("--advanced-tools", action="store_true",
-                        help="Enable selenium advanced tools")
-    parser.add_argument("--undetected-bot", action="store_true",
-                        help="Attempt to hide that selenium is a bot to webpages")
+    parser.add_argument(
+        "--advanced-tools", action="store_true", help="Enable selenium advanced tools"
+    )
+    parser.add_argument(
+        "--undetected-bot",
+        action="store_true",
+        help="Attempt to hide that selenium is a bot to webpages",
+    )
     parser.add_argument(
         "--transport",
         choices=["sse", "stdio"],
         default="stdio",
-        help="Choose transport method: 'sse' or 'stdio' (default: stdio)"
+        help="Choose transport method: 'sse' or 'stdio' (default: stdio)",
     )
     args = parser.parse_args()
 
     try:
-        selenium_server.run(transport=args.transport,
-                            advanced_tools=args.advanced_tools,
-                            undetected_bot=args.undetected_bot)
+        selenium_server.run(
+            transport=args.transport,
+            advanced_tools=args.advanced_tools,
+            undetected_bot=args.undetected_bot,
+        )
     finally:
         selenium_server.quit_browser()

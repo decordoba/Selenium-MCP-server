@@ -23,7 +23,9 @@ class MCPClient:
         self.write: object | None = None
 
     async def connect_to_server(
-        self, server_script_path: str = "server.py", server_script_args: list[str] | str = []
+        self,
+        server_script_path: str = "server.py",
+        server_script_args: list[str] | str | None = None,
     ):
         """Connect to an MCP server.
 
@@ -32,7 +34,12 @@ class MCPClient:
             server_script_args: Arguments passed to the script, if any.
         """
         # Server configuration
-        server_script_args = [server_script_args] if type(server_script_args) is str else server_script_args
+        server_script_args = [] if server_script_args is None else server_script_args
+        server_script_args = (
+            [server_script_args]
+            if type(server_script_args) is str
+            else server_script_args
+        )
         server_params = StdioServerParameters(
             command="python",
             args=[server_script_path] + server_script_args,
@@ -75,10 +82,13 @@ class MCPClient:
             for tool in tools_result.tools
         ]
 
-    async def run_tool(self, name: str, arguments: dict[str, object] | None = None) -> str:
+    async def run_tool(
+        self, name: str, arguments: dict[str, object] | None = None
+    ) -> str:
         """Run tool and return response."""
         result = await self.session.call_tool(
-            name, arguments=arguments,
+            name,
+            arguments=arguments,
         )
         return result.content
 
@@ -93,7 +103,9 @@ async def main():
 
     try:
         print("\nConnecting to MCP server...")
-        await client.connect_to_server("server.py", ["--advanced-tools", "--undetected-bot"])
+        await client.connect_to_server(
+            "server.py", ["--advanced-tools", "--undetected-bot"]
+        )
 
         # tool = {"name": "start_browser"}
         # print(f"Tool: {tool}")
@@ -115,7 +127,7 @@ async def main():
         response = await client.run_tool(**tool)
         print(f"\nResponse: {response}")
 
-        tool = {"name": "get_page_summary", "arguments": {"only_visible_elements": True}}
+        tool = {"name": "get_page_summary", "arguments": {}}
         print(f"Tool: {tool}")
         response = await client.run_tool(**tool)
         print(f"\nResponse: {response}")

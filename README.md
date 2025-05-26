@@ -4,7 +4,7 @@ A Model Context Protocol server that provides selenium capabilities. This server
 
 ## Try it!
 ```bash
-# step 1: create .env and enter your OpenAI credentials
+# step 1: create the .env file (model .env.example) and enter your OpenAI credentials
 
 # step 2: install required python libraries
 uv sync
@@ -13,20 +13,20 @@ uv sync
 # from MCP inspector -> Connect / Go to 'Tools' / Click 'List Tools' / Try them (e.g. go_to, url=google.com)
 uv run mcp dev server.py
 
-# step 4: start interacting with Chat GPT
+# step 4: start interacting with Chat GPT with access to selenium
 uv run python openai_client.py
 
-# step 5: interacting with Chat GPT, but hiding you are a bot
+# step 5: interact with Chat GPT, but hiding that you are a bot to websites
 uv run python openai_client.py --undetected-bot
 ```
 
 ## Files available
 
-* `server.py`: MCP server with tools to open a Selenium browser and interact with it. See tools available below.
+* `server.py`: MCP server with tools to open a Selenium browser and interact with it. See the tools available below.
 
-* `openai_client.py`: Chat with Chat GPT. Chat GPT has access to the basic Selenium MCP tools. You can request actions, see what it does, provide feedback and ask for follow-ups once the task has been completed. Run it with:
+* `openai_client.py`: Chat with Chat GPT. Chat GPT has access to the basic Selenium MCP tools. You can request actions, see what it does, provide feedback and ask for follow-ups once the task has been completed.
 
-* `tool_client.py`: Call Selenium tools in MCP server directly.
+* `tool_client.py`: Call Selenium tools in MCP server directly. Useful for testing.
 ```python
 tool = {"name": "go_to", "arguments": {"url": "google.com"}}
 response = await client.run_tool(**tool)
@@ -37,7 +37,7 @@ print(f"\nResponse: {response}")
 * `simple_openai_client.py`: Request a task (especified by in this file) to Chat GPT. Chat GPT has access to the basic Selenium MCP tools. As soon as Chat GPT stops making function calls, execution ends.
 
 ## Tools
-### Available Tools
+### Default Tools
 
 - `go_to` - Navigate the browser to a specific URL.
   - Required arguments:
@@ -62,6 +62,7 @@ print(f"\nResponse: {response}")
   - Optional arguments:
     - `clear` (bool): Whether to clear existing text before typing. Default: `True`.
     - `press_enter` (bool): Whether to press Enter after typing. Default: `False`.
+    - `is_password` (bool): If True, text written will not be logged to log file. Default: `False`.
     - `by` (string): How to locate the element. Default: `'css selector'`.
 
 - `get_page_summary` - Get a summary of the current page, including forms, buttons, links, and text elements.  
