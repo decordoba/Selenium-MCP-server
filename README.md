@@ -2,14 +2,29 @@
 
 A Model Context Protocol server that provides selenium capabilities. This server enables LLMs to access a Chrome browser through selenium and interact with any URL with clicks, like a user would. I have also provided some code to integrate it with Chat GPT.
 
+## Try it!
+```bash
+# step 1: create .env and enter your OpenAI credentials
+
+# step 2: install required python libraries
+uv sync
+
+# step 3: make sure the MCP server works
+# from MCP inspector -> Connect / Go to 'Tools' / Click 'List Tools' / Try them (e.g. go_to, url=google.com)
+uv run mcp dev server.py
+
+# step 4: start interacting with Chat GPT
+uv run python openai_client.py
+
+# step 5: interacting with Chat GPT, but hiding you are a bot
+uv run python openai_client.py --undetected-bot
+```
+
 ## Files available
 
 * `server.py`: MCP server with tools to open a Selenium browser and interact with it. See tools available below.
 
 * `openai_client.py`: Chat with Chat GPT. Chat GPT has access to the basic Selenium MCP tools. You can request actions, see what it does, provide feedback and ask for follow-ups once the task has been completed. Run it with:
-```bash
-uv run python openai_client.py
-```
 
 * `tool_client.py`: Call Selenium tools in MCP server directly.
 ```python
@@ -51,10 +66,11 @@ print(f"\nResponse: {response}")
 
 - `get_page_summary` - Get a summary of the current page, including forms, buttons, links, and text elements.  
   - Optional arguments:  
-    - `max_elements` (int): Maximum number of elements to return. Default: `20`.  
-    - `skip_elements` (int): Number of elements to skip from the start. Default: `0`.  
-    - `filter_type` (string | None): If specified, only include elements of this type (`"form"`, `"button"`, `"link"`, or `"text"`). Default: `None`.  
-    - `only_visible_elements` (bool): Whether to include only visible elements. Default: `True`.  
+    - `skip_elements` (int): Number of elements to skip from the start. Default: `0`.
+    - `max_elements` (int): Maximum number of elements to return. Default: `20`.
+    - `filter_type` (string): If not `""`, only include elements of this type (`"form"`, `"button"`, `"link"`, or `"text"`). Default: `""`.
+    - `only_visible_elements` (bool): Whether to include only visible elements. Default: `True`.
+    - `detailed` (bool): Whether to show all elements details (xpath, depth, visible, etc.) or just the most important ones. Default: `False`.
   - Returns: A list of dictionaries with metadata for each element, including tag type, text, attributes, xpath, visibility, and hierarchy.
 
 - `take_screenshot_as_base64` - Take a screenshot of the current page and return it as a base64-encoded string.  
@@ -398,7 +414,17 @@ Example:
 ```json
 {
   "command": "python",
-  "args": ["-m", "mcp_server_selenium", "--advanced-tools"]
+  "args": ["-m", "server.py", "--advanced-tools"]
+}
+```
+
+By default, the server uses regular selenium. To make it use "stealth" mode and attempt to avoid bot detection, use `--undetected-bot` as an argument.
+
+Example:
+```json
+{
+  "command": "python",
+  "args": ["-m", "server.py", "--undetected-bot"]
 }
 ```
 
@@ -407,47 +433,15 @@ Example:
 1. Get current time:
 ```json
 {
-  "name": "get_current_time",
+  "name": "go_to",
   "arguments": {
-    "timezone": "Europe/Warsaw"
+    "url": "wikipedia.org"
   }
 }
 ```
 Response:
 ```json
-{
-  "timezone": "Europe/Warsaw",
-  "datetime": "2024-01-01T13:00:00+01:00",
-  "is_dst": false
-}
-```
-
-2. Convert time between timezones:
-```json
-{
-  "name": "convert_time",
-  "arguments": {
-    "source_timezone": "America/New_York",
-    "time": "16:30",
-    "target_timezone": "Asia/Tokyo"
-  }
-}
-```
-Response:
-```json
-{
-  "source": {
-    "timezone": "America/New_York",
-    "datetime": "2024-01-01T12:30:00-05:00",
-    "is_dst": false
-  },
-  "target": {
-    "timezone": "Asia/Tokyo",
-    "datetime": "2024-01-01T12:30:00+09:00",
-    "is_dst": false
-  },
-  "time_difference": "+13.0h",
-}
+"Navigated to https://www.wikipedia.org/"
 ```
 
 ## Debugging
@@ -457,20 +451,7 @@ You can use the MCP inspector to debug the server.
 The easy way:
 
 ```bash
-uv run mcp dev mcp_server_selenium\server.py
-```
-
-For uvx installations:
-
-```bash
-npx @modelcontextprotocol/inspector uvx mcp-server-selenium
-```
-
-Or if you've installed the package in a specific directory or are developing on it:
-
-```bash
-cd path/to/servers/src/selenium
-npx @modelcontextprotocol/inspector uv run mcp-server-selenium
+uv run mcp dev server.py
 ```
 
 ## Examples of Commands for Claude
@@ -479,12 +460,3 @@ npx @modelcontextprotocol/inspector uv run mcp-server-selenium
 2. "Search for elephants in Google"
 3. "Read the top 5 articles on elephants in Google and summarize them"
 4. "Fill the form in https://my_form.com with random responses"
-
-## Build
-
-Docker build:
-
-```bash
-cd selenium
-docker build -t mcp/mcp_server_selenium .
-```

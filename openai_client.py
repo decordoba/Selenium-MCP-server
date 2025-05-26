@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import copy
 import json
@@ -259,23 +260,36 @@ class MCPOpenAIClient:
         return self.messages
 
 
-async def main():
+async def main(advanced_tools: bool = False, undetected_bot: bool = False):
     """Main entry point for the client."""
     model = "gpt-4.1-nano"
     client = MCPOpenAIClient(model=model)
 
+    args = []
+    if advanced_tools:
+        args.append("--advanced-tools")
+    if undetected_bot:
+        args.append("--undetected-bot")
+
     try:
-        await client.connect_to_server("server.py", "--undetected-bot")
+        await client.connect_to_server("server.py", *args)
 
         client.set_instructions("""
 Your goal is to complete tasks using the tools provided to control a browser.
 You can request multiple functions at once, and they will be executed one after the other.
 Continue calling tools until the task is completed or you are unable to finish it, only then communicate back to the user.
-Your average workflow will be: go_to url, get_page_summary to understand contents page, type_text in element, click in element, then get_page_summary, etc.
-You can also see the page with take_screenshot_as_base64 or get_html to see the html of the page, but always try get_page_summary first.
+Your average workflow will be: `go_to` url, `get_page_summary` to understand contents page, `type_text` in element,
+`click` in element, then `get_page_summary`, etc. Use only valid CSS selectors for the `locator` of `click` and `type_text`.
+Examples: click(locator="#submit-button") or type_text(locator="input[name='email']", text="user@example.com").
+You can also see the page with take_screenshot_as_base64, but always try get_page_summary first.
+If get_page_summary does not return all elements in the page, use skip_elements to see the next elements.
+Example: get_page_summary(skip_elements=20).
+Or use filter_type to see only buttons, forms, links, or texts.
+Example: get_page_summary(filter_type="button").
 If a request to download is received, it probably means to download a file using the browser.
 If you are asked a request that you don't know how to complete, searching in Google or Bing is a good start.
-            """.strip().replace("\n", " "))
+If you can't interact with an element, maybe there is something preventing you. Look at the summary and try to solve it before.
+        """.strip().replace("\n", " "))
 
         while True:
             print("--------------------------")
@@ -294,4 +308,13 @@ If you are asked a request that you don't know how to complete, searching in Goo
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(
+        description="Chat with a Chat GPT  with browser navigation capabilities through Selenium"
+    )
+    parser.add_argument("--advanced-tools", action="store_true",
+                        help="Enable selenium advanced tools by default")
+    parser.add_argument("--undetected-bot", action="store_true",
+                        help="Attempt to hide that selenium is a bot")
+    args = parser.parse_args()
+
+    asyncio.run(main(advanced_tools=args.advanced_tools, undetected_bot=args.undetected_bot))

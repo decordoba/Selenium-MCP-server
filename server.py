@@ -509,13 +509,12 @@ class SeleniumMCPServer:
         except Exception as e:
             return self._log_return(f"Error locating element: {str(e)}")
 
-    def get_page_summary(self, max_elements: int = 20, skip_elements: int = 0, filter_type: str | None = None,
-                         only_visible_elements: bool = True) -> list[dict[str, object]]:
+    def get_page_summary(self, skip_elements: int = 0, max_elements: int = 20, filter_type: str = "",
+                         only_visible_elements: bool = True, detailed: bool = False) -> list[dict[str, object]]:
         """Get page summary containing all forms, buttons, links and texts."""
         self._log_call(f"Get page summary. Only visible: {only_visible_elements}, max elements: {max_elements}")
-        soup = BeautifulSoup(self.driver.page_source, "html.parser")
         visibility_cache = {}
-        summary = []
+        interactability_cache = {}
 
         def is_element_visible_by_xpath(xpath):
             if xpath in visibility_cache:
@@ -527,6 +526,15 @@ class SeleniumMCPServer:
                 return False
             visibility_cache[xpath] = visible
             return visible
+
+        def is_element_interactable(xpath, max_wait=0.5):
+            if xpath in interactability_cache:
+                return interactability_cache[xpath]
+            try:
+                WebDriverWait(self.driver, max_wait).until(EC.element_to_be_clickable((By.XPATH, xpath)))
+                return True
+            except (NoSuchElementException, TimeoutException):
+                return False
 
         def build_xpath(el):
             path = []
@@ -556,12 +564,16 @@ class SeleniumMCPServer:
             inputs = []
             for inp in form.find_all(["input", "textarea", "select"]):
                 inp_data = clean_attrs(inp, ["name", "placeholder", "type", "class", "id"])
+                if "class" in inp_data:
+                    inp_data["class"] = inp_data["class"] if detailed else " ".join(inp_data["class"])
                 if inp_data:
                     xpath = build_xpath(inp)
-                    inp_data["xpath"] = xpath
+                    if detailed:
+                        inp_data["xpath"] = xpath
                     visible = is_element_visible_by_xpath(xpath)
                     if not only_visible_elements:
-                        inp_data["visible"] = visible
+                        if detailed:
+                            inp_data["visible"] = visible
                     elif not visible:
                         continue
                     inputs.append(inp_data)
@@ -574,15 +586,18 @@ class SeleniumMCPServer:
                 text = btn.get_text(strip=True)
                 if text:
                     btn_data["text"] = text
-                btn_data.update(clean_attrs(btn, ["aria-label", "role", "class", "id"]))
+                if detailed:
+                    btn_data.update(clean_attrs(btn, ["aria-label", "role", "class", "id"]))
                 classes = btn.get("class")
                 if classes:
-                    btn_data["classes"] = classes
+                    btn_data["class"] = classes if detailed else " ".join(classes)
                 xpath = build_xpath(btn)
-                btn_data["xpath"] = xpath
+                if detailed:
+                    btn_data["xpath"] = xpath
                 visible = is_element_visible_by_xpath(xpath)
                 if not only_visible_elements:
-                    btn_data["visible"] = visible
+                    if detailed:
+                        btn_data["visible"] = visible
                 elif not visible:
                     continue
                 if btn_data:
@@ -590,19 +605,23 @@ class SeleniumMCPServer:
             return buttons
 
         def summarize_forms_buttons_links_and_text():
+            summary = []
+            soup = BeautifulSoup(self.driver.page_source, "html.parser")
             for i, tag in enumerate(soup.find_all(["form", "button", "a", "h1", "h2", "h3", "p", "span"])):
                 xpath = build_xpath(tag)
                 data = {
                     "index": None,  # fill later
                     "type": "form" if tag.name == "form" else "button" if tag.name == "button" else "link" if tag.name == "a" else "text",
-                    "xpath": xpath,
-                    "depth": get_depth(tag),
                 }
-                if filter_type is not None and filter_type != data["type"]:
+                if filter_type != "" and filter_type != data["type"]:
                     continue
+                if detailed:
+                    data["xpath"] = xpath
+                    data["depth"] = get_depth(tag)
                 visible = is_element_visible_by_xpath(xpath)
                 if not only_visible_elements:
-                    data["visible"] = visible
+                    if detailed:
+                        data["visible"] = visible
                 elif not visible:
                     continue
                 text = tag.get_text(strip=True)
@@ -619,28 +638,35 @@ class SeleniumMCPServer:
                     buttons = extract_buttons(tag)
                     if buttons:
                         data["buttons"] = buttons
-                data.update(clean_attrs(tag, ["aria-label", "role"]))
+                if detailed:
+                    data.update(clean_attrs(tag, ["aria-label", "role"]))
                 classes = tag.get("class")
                 if classes:
-                    data["class"] = classes
+                    data["class"] = classes if detailed else " ".join(classes)
                 id = tag.get("id")
                 if id:
                     data["id"] = id
-                parent = tag.find_parent()
-                if parent and parent.name != "[document]":
-                    parent_info = {
-                        "tag": parent.name,
-                        "id": parent.get("id"),
-                        "class": parent.get("class")
-                    }
-                    parent_info = {k: v for k, v in parent_info.items() if v}
-                    if parent_info:
-                        data["parent"] = parent_info
+                if detailed:
+                    parent = tag.find_parent()
+                    if parent and parent.name != "[document]":
+                        parent_info = {
+                            "tag": parent.name,
+                            "id": parent.get("id"),
+                            "class": parent.get("class")
+                        }
+                        parent_info = {k: v for k, v in parent_info.items() if v}
+                        if parent_info:
+                            data["parent"] = parent_info
                 summary.append(data)
+            # Reorder to place most important items first, this matters because max_elements
+            order = {"button": 0, "link": 1, "form": 2, "text": 3}
+            summary = sorted(summary, key=lambda x: order.get(x["type"], float("inf")))
+            # Add index indicating number of total elements
             for i, data in enumerate(summary):
                 data["index"] = f"{i + 1}/{len(summary)}"
+            return summary
 
-        summarize_forms_buttons_links_and_text()
+        summary = summarize_forms_buttons_links_and_text()
         return self._log_return(summary[skip_elements:skip_elements + max_elements])
 
     def find_elements(self, locator: str, by: str = "css selector",
